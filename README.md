@@ -27,7 +27,8 @@ Create a simple div, Text will be escaped by html
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
 	// <div>123&lt;h1&gt;Hello, We write html in Go
-	// <br></div>
+	// <br>
+	// </div>
 ```
 
 Create a full html page
@@ -47,13 +48,13 @@ Create a full html page
 	//
 	// <html>
 	// <head>
-	// <meta charset='utf8'></meta>
+	// <meta charset='utf8'>
 	//
 	// <title>My test page</title>
 	// </head>
 	//
 	// <body>
-	// <img src='images/firefox-icon.png' alt='My test image'></img>
+	// <img src='images/firefox-icon.png' alt='My test image'>
 	// </body>
 	// </html>
 ```
@@ -61,15 +62,15 @@ Create a full html page
 Use RawHTML and Component
 ```go
 	userProfile := func(username string, avatarURL string) HTMLComponent {
-	    return ComponentFunc(func(ctx context.Context) (r []byte, err error) {
+	    return ComponentFunc(func(ctx context.Context, buf *[]byte) error {
 	        return Div(
 	            H1(username).Class("profileName"),
 	            Img(avatarURL).Class("profileImage"),
 	            RawHTML("<svg>complicated svg</svg>\n"),
-	        ).Class("userProfile").MarshalHTML(ctx)
+	        ).Class("userProfile").MarshalHTML(ctx, buf)
 	    })
 	}
-	
+
 	comp := Ul(
 	    Li(
 	        userProfile("felix<h1>", "http://image.com/img1.png"),
@@ -85,7 +86,7 @@ Use RawHTML and Component
 	// <div class='userProfile'>
 	// <h1 class='profileName'>felix&lt;h1&gt;</h1>
 	//
-	// <img src='http://image.com/img1.png' class='profileImage'></img>
+	// <img src='http://image.com/img1.png' class='profileImage'>
 	// <svg>complicated svg</svg>
 	// </div>
 	// </li>
@@ -94,7 +95,7 @@ Use RawHTML and Component
 	// <div class='userProfile'>
 	// <h1 class='profileName'>john</h1>
 	//
-	// <img src='http://image.com/img2.png' class='profileImage'></img>
+	// <img src='http://image.com/img2.png' class='profileImage'>
 	// <svg>complicated svg</svg>
 	// </div>
 	// </li>
@@ -105,27 +106,27 @@ More complicated customized component
 ```go
 	/*
 	    Define MySelect as follows:
-	
+
 	    type MySelectBuilder struct {
 	        options  [][]string
 	        selected string
 	    }
-	
+
 	    func MySelect() *MySelectBuilder {
 	        return &MySelectBuilder{}
 	    }
-	
+
 	    func (b *MySelectBuilder) Options(opts [][]string) (r *MySelectBuilder) {
 	        b.options = opts
 	        return b
 	    }
-	
+
 	    func (b *MySelectBuilder) Selected(selected string) (r *MySelectBuilder) {
 	        b.selected = selected
 	        return b
 	    }
-	
-	    func (b *MySelectBuilder) MarshalHTML(ctx context.Context) (r []byte, err error) {
+
+	    func (b *MySelectBuilder) MarshalHTML(ctx context.Context, buf *[]byte) error {
 	        opts := []HTMLComponent{}
 	        for _, op := range b.options {
 	            var opt HTMLComponent
@@ -136,16 +137,16 @@ More complicated customized component
 	            }
 	            opts = append(opts, opt)
 	        }
-	        return Select(opts...).MarshalHTML(ctx)
+	        return Select(opts...).MarshalHTML(ctx, buf)
 	    }
 	*/
-	
+
 	comp := MySelect().Options([][]string{
 	    {"1", "label 1"},
 	    {"2", "label 2"},
 	    {"3", "label 3"},
 	}).Selected("2")
-	
+
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
 	// <select>
@@ -166,7 +167,7 @@ Write a little bit of JavaScript and stylesheet
 	    background-color: red;
 	}
 	`),
-	
+
 	    Script(`
 	var b = document.getElementById("hello")
 	b.onclick = function(e){
@@ -174,7 +175,7 @@ Write a little bit of JavaScript and stylesheet
 	}
 	`),
 	).Class("container")
-	
+
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
 	// <div class='container'>
@@ -200,20 +201,18 @@ An example about how to integrate into http.Handler, and how to do layout, and h
 	type User struct {
 	    Name string
 	}
-	
+
 	userStatus := func() HTMLComponent {
-	    return ComponentFunc(func(ctx context.Context) (r []byte, err error) {
-	
+	    return ComponentFunc(func(ctx context.Context, buf *[]byte) error {
 	        if currentUser, ok := ctx.Value("currentUser").(*User); ok {
 	            return Div(
 	                Text(currentUser.Name),
-	            ).Class("username").MarshalHTML(ctx)
+	            ).Class("username").MarshalHTML(ctx, buf)
 	        }
-	
-	        return Div(Text("Login")).Class("login").MarshalHTML(ctx)
+	        return Div(Text("Login")).Class("login").MarshalHTML(ctx, buf)
 	    })
 	}
-	
+
 	myHeader := func() HTMLComponent {
 	    return Div(
 	        Text("header"),
@@ -223,7 +222,7 @@ An example about how to integrate into http.Handler, and how to do layout, and h
 	myFooter := func() HTMLComponent {
 	    return Div(Text("footer")).Class("footer")
 	}
-	
+
 	layout := func(in HTMLComponent) (out HTMLComponent) {
 	    out = HTML(
 	        Head(
@@ -237,34 +236,34 @@ An example about how to integrate into http.Handler, and how to do layout, and h
 	    )
 	    return
 	}
-	
+
 	getLoginUserFromCookie := func(r *http.Request) *User {
 	    return &User{Name: "felix"}
 	}
-	
+
 	homeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	    user := getLoginUserFromCookie(r)
 	    ctx := context.WithValue(context.TODO(), "currentUser", user)
-	
+
 	    root := Div(
 	        Text("This is my home page"),
 	    )
-	
+
 	    Fprint(w, layout(root), ctx)
 	})
-	
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/", nil)
 	homeHandler.ServeHTTP(w, r)
-	
+
 	fmt.Println(w.Body.String())
-	
+
 	//Output:
 	// <!DOCTYPE html>
 	//
 	// <html>
 	// <head>
-	// <meta charset='utf8'></meta>
+	// <meta charset='utf8'>
 	// </head>
 	//
 	// <body>
@@ -298,9 +297,9 @@ An example show how to set different type of attributes
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
 	// <div>
-	// <input name='username' type='checkbox' checked more-data='{"Name":"felix","Count":100}' max-length='10'></input>
+	// <input name='username' type='checkbox' checked more-data='{"Name":"felix","Count":100}' max-length='10'>
 	//
-	// <input name='username2' type='checkbox'></input>
+	// <input name='username2' type='checkbox'>
 	// </div>
 ```
 
@@ -320,7 +319,7 @@ An example to use If, `Iff` is for body to passed in as an func for the body dep
 	    Age int
 	}
 	var p *Person
-	
+
 	name := "Leon"
 	comp := Div(
 	    Iff(p != nil && p.Age > 18, func() HTMLComponent {
@@ -337,6 +336,3 @@ An example to use If, `Iff` is for body to passed in as an func for the body dep
 	// <div>No person named Leon</div>
 	// </div>
 ```
-
-
-
