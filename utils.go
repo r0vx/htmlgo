@@ -55,6 +55,9 @@ func Fprint(w io.Writer, root HTMLComponent, ctx context.Context) error {
 
 // MustString 将组件渲染为字符串，panic on error
 func MustString(root HTMLComponent, ctx context.Context) string {
+	if root == nil {
+		return ""
+	}
 	buf := make([]byte, 0, 4096)
 	if err := root.MarshalHTML(ctx, &buf); err != nil {
 		panic(err)

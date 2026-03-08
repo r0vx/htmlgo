@@ -376,12 +376,16 @@ func JSONString(v interface{}) (r string) {
 	return
 }
 
-// appendEscapeAttr 将 s 追加到 buf，遇到 ' 替换为 &#39;
+// appendEscapeAttr 将 s 追加到 buf，转义 HTML 属性值中的特殊字符
+// 单引号属性值中需转义: ' → &#39;, & → &amp; (防止浏览器解码 HTML 实体如 &quot;)
 func appendEscapeAttr(buf []byte, s string) []byte {
 	for i := 0; i < len(s); i++ {
-		if s[i] == '\'' {
+		switch s[i] {
+		case '\'':
 			buf = append(buf, "&#39;"...)
-		} else {
+		case '&':
+			buf = append(buf, "&amp;"...)
+		default:
 			buf = append(buf, s[i])
 		}
 	}
