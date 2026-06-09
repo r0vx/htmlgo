@@ -2,8 +2,8 @@ package htmlgo
 
 import (
 	"context"
-	"github.com/bytedance/sonic"
 	"fmt"
+	"github.com/bytedance/sonic"
 	"html"
 	"strconv"
 	"strings"
@@ -11,7 +11,7 @@ import (
 
 type tagAttr struct {
 	key   string
-	value interface{}
+	value any
 }
 
 type HTMLTagBuilder struct {
@@ -55,7 +55,7 @@ func (b *HTMLTagBuilder) Children(comps ...HTMLComponent) (r *HTMLTagBuilder) {
 	return b
 }
 
-func (b *HTMLTagBuilder) SetAttr(k string, v interface{}) {
+func (b *HTMLTagBuilder) SetAttr(k string, v any) {
 	for _, at := range b.attrs {
 		if at.key == k {
 			at.value = v
@@ -65,7 +65,7 @@ func (b *HTMLTagBuilder) SetAttr(k string, v interface{}) {
 	b.attrs = append(b.attrs, &tagAttr{k, v})
 }
 
-func (b *HTMLTagBuilder) Attr(vs ...interface{}) (r *HTMLTagBuilder) {
+func (b *HTMLTagBuilder) Attr(vs ...any) (r *HTMLTagBuilder) {
 	if len(vs)%2 != 0 {
 		vs = append(vs, "")
 	}
@@ -80,7 +80,7 @@ func (b *HTMLTagBuilder) Attr(vs ...interface{}) (r *HTMLTagBuilder) {
 	return b
 }
 
-func (b *HTMLTagBuilder) AttrIf(key, value interface{}, add bool) (r *HTMLTagBuilder) {
+func (b *HTMLTagBuilder) AttrIf(key, value any, add bool) (r *HTMLTagBuilder) {
 	if !add {
 		return b
 	}
@@ -95,8 +95,7 @@ func (b *HTMLTagBuilder) Class(names ...string) (r *HTMLTagBuilder) {
 
 func (b *HTMLTagBuilder) addClass(names ...string) (r *HTMLTagBuilder) {
 	for _, n := range names {
-		ins := strings.Split(n, " ")
-		for _, in := range ins {
+		for in := range strings.SplitSeq(n, " ") {
 			tin := strings.TrimSpace(in)
 			if len(tin) > 0 {
 				b.classNames = append(b.classNames, tin)
@@ -367,7 +366,7 @@ func (b *HTMLTagBuilder) MarshalHTML(ctx context.Context, buf *[]byte) error {
 	return nil
 }
 
-func JSONString(v interface{}) (r string) {
+func JSONString(v any) (r string) {
 	b, err := sonic.Marshal(v)
 	if err != nil {
 		panic(err)
@@ -379,7 +378,7 @@ func JSONString(v interface{}) (r string) {
 // appendEscapeAttr 将 s 追加到 buf，转义 HTML 属性值中的特殊字符
 // 单引号属性值中需转义: ' → &#39;, & → &amp; (防止浏览器解码 HTML 实体如 &quot;)
 func appendEscapeAttr(buf []byte, s string) []byte {
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		switch s[i] {
 		case '\'':
 			buf = append(buf, "&#39;"...)

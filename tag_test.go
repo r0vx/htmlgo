@@ -1,7 +1,6 @@
 package htmlgo_test
 
 import (
-	"context"
 	"testing"
 
 	. "github.com/r0vx/htmlgo"
@@ -57,7 +56,7 @@ var htmltagCases = []struct {
 func TestHtmlTag(t *testing.T) {
 	for _, c := range htmltagCases {
 		buf := make([]byte, 0, 1024)
-		err := c.tag.MarshalHTML(context.TODO(), &buf)
+		err := c.tag.MarshalHTML(t.Context(), &buf)
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}

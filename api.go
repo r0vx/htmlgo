@@ -1,5 +1,4 @@
 /*
-
 ## htmlgo
 
 Type safe and modularize way to generate html on server side.
@@ -10,7 +9,6 @@ Download the package with `go get -v github.com/r0vx/htmlgo` and import the pack
 	)
 
 also checkout full API documentation at: https://godoc.org/github.com/r0vx/htmlgo
-
 */
 package htmlgo
 
@@ -30,5 +28,5 @@ func (f ComponentFunc) MarshalHTML(ctx context.Context, buf *[]byte) error {
 
 type MutableAttrHTMLComponent interface {
 	HTMLComponent
-	SetAttr(k string, v interface{})
+	SetAttr(k string, v any)
 }

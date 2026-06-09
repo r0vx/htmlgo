@@ -1,7 +1,6 @@
 package htmlgo_test
 
 import (
-	"context"
 	"io"
 	"testing"
 
@@ -20,7 +19,7 @@ func simpleComponent() HTMLComponent {
 // 模拟一个中等复杂度的页面
 func mediumComponent() HTMLComponent {
 	rows := make([]HTMLComponent, 20)
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		rows[i] = Tr(
 			Td(Text("Cell 1")),
 			Td(Text("Cell 2")),
@@ -52,7 +51,7 @@ func mediumComponent() HTMLComponent {
 // 模拟一个复杂的真实页面：嵌套深、组件多
 func complexComponent() HTMLComponent {
 	cards := make([]HTMLComponent, 50)
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		cards[i] = Div(
 			Div(
 				Img("/img/photo.jpg").Alt("photo").Class("card-img"),
@@ -115,9 +114,9 @@ func complexComponent() HTMLComponent {
 }
 
 func BenchmarkSimple(b *testing.B) {
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		comp := simpleComponent()
 		buf := make([]byte, 0, 1024)
 		if err := comp.MarshalHTML(ctx, &buf); err != nil {
@@ -127,9 +126,9 @@ func BenchmarkSimple(b *testing.B) {
 }
 
 func BenchmarkMedium(b *testing.B) {
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		comp := mediumComponent()
 		buf := make([]byte, 0, 4096)
 		if err := comp.MarshalHTML(ctx, &buf); err != nil {
@@ -139,9 +138,9 @@ func BenchmarkMedium(b *testing.B) {
 }
 
 func BenchmarkComplex(b *testing.B) {
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		comp := complexComponent()
 		buf := make([]byte, 0, 16384)
 		if err := comp.MarshalHTML(ctx, &buf); err != nil {
@@ -152,9 +151,9 @@ func BenchmarkComplex(b *testing.B) {
 
 // 单独测 Fprint 路径（模拟 HTTP handler 场景）
 func BenchmarkComplexFprint(b *testing.B) {
-	ctx := context.Background()
+	ctx := b.Context()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		comp := complexComponent()
 		if err := Fprint(io.Discard, comp, ctx); err != nil {
 			b.Fatal(err)

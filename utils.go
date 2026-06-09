@@ -18,7 +18,7 @@ func Text(text string) (r HTMLComponent) {
 	return RawHTML(html.EscapeString(text))
 }
 
-func Textf(format string, a ...interface{}) (r HTMLComponent) {
+func Textf(format string, a ...any) (r HTMLComponent) {
 	return Text(fmt.Sprintf(format, a...))
 }
 
