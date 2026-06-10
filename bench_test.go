@@ -160,3 +160,15 @@ func BenchmarkComplexFprint(b *testing.B) {
 		}
 	}
 }
+
+// Cached 回放的理论上限：整页缓存后纯 memcpy
+func BenchmarkComplexCached(b *testing.B) {
+	ctx := b.Context()
+	comp := Cached(complexComponent())
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := Fprint(io.Discard, comp, ctx); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

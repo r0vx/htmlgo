@@ -14,25 +14,23 @@ type tagAttr struct {
 	value any
 }
 
+// HTMLTagBuilder 不可值拷贝:classNames 初始指向内联的 classBuf,
+// 值拷贝会让两个 builder 共享同一底层数组
+// 字段经基准调优:结构体大小(分配清零 + GC 扫描)比分配次数对耗时影响更大,
+// 故只内联收益最高的单个 class 槽,不内联 attrs
 type HTMLTagBuilder struct {
 	tag        string
-	omitEndTag bool
-	attrs      []*tagAttr
-	styles     []string
+	text       string // Text() 的正文,渲染时直接转义写入 buf,避免装箱为子组件;非空即生效(Text("") 与无文本输出等价)
+	attrs      []tagAttr
+	styles     *[]string // 内联样式极少用,指针懒分配换 16B 结构体瘦身(160→144 size class)
 	classNames []string
 	children   []HTMLComponent
+	classBuf   [1]string // classNames 的内联首块;Class() 存原文不拆分,单次调用即覆盖多数场景
+	omitEndTag bool
 }
 
 func Tag(tag string) (r *HTMLTagBuilder) {
-	r = &HTMLTagBuilder{}
-
-	if r.attrs == nil {
-		r.attrs = []*tagAttr{}
-	}
-
-	r.Tag(tag)
-
-	return
+	return &HTMLTagBuilder{tag: tag}
 }
 
 func (b *HTMLTagBuilder) Tag(v string) (r *HTMLTagBuilder) {
@@ -46,23 +44,35 @@ func (b *HTMLTagBuilder) OmitEndTag() (r *HTMLTagBuilder) {
 }
 
 func (b *HTMLTagBuilder) Text(v string) (r *HTMLTagBuilder) {
-	b.Children(Text(v))
+	b.text = v
+	b.children = nil
 	return b
 }
 
 func (b *HTMLTagBuilder) Children(comps ...HTMLComponent) (r *HTMLTagBuilder) {
 	b.children = comps
+	b.text = ""
 	return b
 }
 
-func (b *HTMLTagBuilder) SetAttr(k string, v any) {
-	for _, at := range b.attrs {
-		if at.key == k {
-			at.value = v
-			return
+// findOrAddAttr 按 key 查找属性,不存在则追加一个空槽
+func (b *HTMLTagBuilder) findOrAddAttr(k string) *tagAttr {
+	for i := range b.attrs {
+		if b.attrs[i].key == k {
+			return &b.attrs[i]
 		}
 	}
-	b.attrs = append(b.attrs, &tagAttr{k, v})
+	b.attrs = append(b.attrs, tagAttr{key: k})
+	return &b.attrs[len(b.attrs)-1]
+}
+
+func (b *HTMLTagBuilder) SetAttr(k string, v any) {
+	b.findOrAddAttr(k).value = v
+}
+
+// setAttrString 字符串属性 helper 的公共入口
+func (b *HTMLTagBuilder) setAttrString(k, v string) {
+	b.findOrAddAttr(k).value = v
 }
 
 func (b *HTMLTagBuilder) Attr(vs ...any) (r *HTMLTagBuilder) {
@@ -93,13 +103,15 @@ func (b *HTMLTagBuilder) Class(names ...string) (r *HTMLTagBuilder) {
 	return b
 }
 
+// addClass 存原始字符串不拆分，拆分/trim 延迟到渲染期零分配完成
+// 全空白的串在此过滤，保证 classNames 非空时渲染必有输出；首块用内联 classBuf
 func (b *HTMLTagBuilder) addClass(names ...string) (r *HTMLTagBuilder) {
 	for _, n := range names {
-		for in := range strings.SplitSeq(n, " ") {
-			tin := strings.TrimSpace(in)
-			if len(tin) > 0 {
-				b.classNames = append(b.classNames, tin)
+		if strings.TrimSpace(n) != "" {
+			if b.classNames == nil {
+				b.classNames = b.classBuf[:0]
 			}
+			b.classNames = append(b.classNames, n)
 		}
 	}
 	return b
@@ -115,28 +127,28 @@ func (b *HTMLTagBuilder) ClassIf(name string, add bool) (r *HTMLTagBuilder) {
 
 func (b *HTMLTagBuilder) Data(vs ...string) (r *HTMLTagBuilder) {
 	for i := 0; i < len(vs); i = i + 2 {
-		b.Attr(fmt.Sprintf("data-%s", vs[i]), vs[i+1])
+		b.setAttrString("data-"+vs[i], vs[i+1])
 	}
 	return b
 }
 
 func (b *HTMLTagBuilder) Id(v string) (r *HTMLTagBuilder) {
-	b.Attr("id", v)
+	b.setAttrString("id", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Href(v string) (r *HTMLTagBuilder) {
-	b.Attr("href", v)
+	b.setAttrString("href", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Rel(v string) (r *HTMLTagBuilder) {
-	b.Attr("rel", v)
+	b.setAttrString("rel", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Title(v string) (r *HTMLTagBuilder) {
-	b.Attr("title", html.EscapeString(v))
+	b.setAttrString("title", html.EscapeString(v))
 	return b
 }
 
@@ -156,32 +168,32 @@ func (b *HTMLTagBuilder) Readonly(v bool) (r *HTMLTagBuilder) {
 }
 
 func (b *HTMLTagBuilder) Role(v string) (r *HTMLTagBuilder) {
-	b.Attr("role", v)
+	b.setAttrString("role", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Alt(v string) (r *HTMLTagBuilder) {
-	b.Attr("alt", v)
+	b.setAttrString("alt", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Target(v string) (r *HTMLTagBuilder) {
-	b.Attr("target", v)
+	b.setAttrString("target", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Name(v string) (r *HTMLTagBuilder) {
-	b.Attr("name", v)
+	b.setAttrString("name", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Value(v string) (r *HTMLTagBuilder) {
-	b.Attr("value", v)
+	b.setAttrString("value", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) For(v string) (r *HTMLTagBuilder) {
-	b.Attr("for", v)
+	b.setAttrString("for", v)
 	return b
 }
 
@@ -200,49 +212,52 @@ func (b *HTMLTagBuilder) StyleIf(v string, add bool) (r *HTMLTagBuilder) {
 
 func (b *HTMLTagBuilder) addStyle(v string) (r *HTMLTagBuilder) {
 	if len(v) > 0 {
-		b.styles = append(b.styles, v)
+		if b.styles == nil {
+			b.styles = &[]string{}
+		}
+		*b.styles = append(*b.styles, v)
 	}
 
 	return b
 }
 
 func (b *HTMLTagBuilder) Type(v string) (r *HTMLTagBuilder) {
-	b.Attr("type", v)
+	b.setAttrString("type", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Placeholder(v string) (r *HTMLTagBuilder) {
-	b.Attr("placeholder", v)
+	b.setAttrString("placeholder", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Src(v string) (r *HTMLTagBuilder) {
-	b.Attr("src", v)
+	b.setAttrString("src", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Property(v string) (r *HTMLTagBuilder) {
-	b.Attr("property", v)
+	b.setAttrString("property", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Action(v string) (r *HTMLTagBuilder) {
-	b.Attr("action", v)
+	b.setAttrString("action", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Method(v string) (r *HTMLTagBuilder) {
-	b.Attr("method", v)
+	b.setAttrString("method", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Content(v string) (r *HTMLTagBuilder) {
-	b.Attr("content", v)
+	b.setAttrString("content", v)
 	return b
 }
 
 func (b *HTMLTagBuilder) Charset(v string) (r *HTMLTagBuilder) {
-	b.Attr("charset", v)
+	b.setAttrString("charset", v)
 	return b
 }
 
@@ -257,89 +272,61 @@ func (b *HTMLTagBuilder) Checked(v bool) (r *HTMLTagBuilder) {
 }
 
 func (b *HTMLTagBuilder) AppendChildren(c ...HTMLComponent) (r *HTMLTagBuilder) {
+	b.materializeText()
 	b.children = append(b.children, c...)
 	return b
 }
 
 func (b *HTMLTagBuilder) PrependChildren(c ...HTMLComponent) (r *HTMLTagBuilder) {
+	b.materializeText()
 	b.children = append(c, b.children...)
 	return b
 }
 
-func (b *HTMLTagBuilder) MarshalHTML(ctx context.Context, buf *[]byte) error {
-	class := strings.TrimSpace(strings.Join(b.classNames, " "))
-	if len(class) > 0 {
-		b.Attr("class", class)
+// materializeText 把 Text() 快路径的正文转回子组件，保持与 children 的顺序语义
+// Text("") 无可见输出，不必物化
+func (b *HTMLTagBuilder) materializeText() {
+	if len(b.text) > 0 {
+		b.children = []HTMLComponent{textComponent(b.text)}
+		b.text = ""
 	}
+}
 
-	styles := strings.TrimSpace(strings.Join(b.styles, "; "))
-	if len(styles) > 0 {
-		b.Attr("style", styles+";")
+func (b *HTMLTagBuilder) MarshalHTML(ctx context.Context, buf *[]byte) error {
+	// class/style 延迟到此处直接写入 buf，渲染不变异 builder
+	classPending := len(b.classNames) > 0
+
+	var styleVal string
+	if b.styles != nil && len(*b.styles) > 0 {
+		styleVal = strings.TrimSpace(strings.Join(*b.styles, "; "))
 	}
+	stylePending := len(styleVal) > 0
 
 	// 写开标签: \n<tag
 	*buf = append(*buf, '\n', '<')
 	*buf = append(*buf, b.tag...)
 
-	// 写属性
-	for _, at := range b.attrs {
-		var val string
-		var isBool bool
-		var boolVal bool
-		switch v := at.value.(type) {
-		case string:
-			val = v
-		case []byte:
-			val = string(v)
-		case []rune:
-			val = string(v)
-		case int:
-			val = strconv.Itoa(v)
-		case int8:
-			val = strconv.FormatInt(int64(v), 10)
-		case int16:
-			val = strconv.FormatInt(int64(v), 10)
-		case int32:
-			val = strconv.FormatInt(int64(v), 10)
-		case int64:
-			val = strconv.FormatInt(v, 10)
-		case uint:
-			val = strconv.FormatUint(uint64(v), 10)
-		case uint8:
-			val = strconv.FormatUint(uint64(v), 10)
-		case uint16:
-			val = strconv.FormatUint(uint64(v), 10)
-		case uint32:
-			val = strconv.FormatUint(uint64(v), 10)
-		case uint64:
-			val = strconv.FormatUint(v, 10)
-		case float32:
-			val = strconv.FormatFloat(float64(v), 'f', -1, 32)
-		case float64:
-			val = strconv.FormatFloat(v, 'f', -1, 64)
-		case bool:
-			boolVal = v
-			isBool = true
-		default:
-			val = JSONString(v)
-		}
-
-		if len(val) == 0 && !isBool {
+	// 写属性；手动 Attr 设置过的 class/style 在原位置被 Class()/Style() 的值覆盖
+	for i := range b.attrs {
+		at := &b.attrs[i]
+		if classPending && at.key == "class" {
+			b.appendClassAttr(buf)
+			classPending = false
 			continue
 		}
-		if isBool && !boolVal {
+		if stylePending && at.key == "style" {
+			appendStyleAttr(buf, styleVal)
+			stylePending = false
 			continue
 		}
+		appendAttr(buf, at)
+	}
 
-		*buf = append(*buf, ' ')
-		if isBool && boolVal {
-			*buf = appendEscapeAttr(*buf, at.key)
-		} else {
-			*buf = appendEscapeAttr(*buf, at.key)
-			*buf = append(*buf, '=', '\'')
-			*buf = appendEscapeAttr(*buf, val)
-			*buf = append(*buf, '\'')
-		}
+	if classPending {
+		b.appendClassAttr(buf)
+	}
+	if stylePending {
+		appendStyleAttr(buf, styleVal)
 	}
 
 	*buf = append(*buf, '>')
@@ -347,6 +334,11 @@ func (b *HTMLTagBuilder) MarshalHTML(ctx context.Context, buf *[]byte) error {
 	if b.omitEndTag {
 		*buf = append(*buf, '\n')
 		return nil
+	}
+
+	// Text() 快路径：正文直接转义写入，无子组件装箱
+	if len(b.text) > 0 {
+		*buf = appendEscapeText(*buf, b.text)
 	}
 
 	// 递归写子组件
@@ -375,18 +367,139 @@ func JSONString(v any) (r string) {
 	return
 }
 
-// appendEscapeAttr 将 s 追加到 buf，转义 HTML 属性值中的特殊字符
-// 单引号属性值中需转义: ' → &#39;, & → &amp; (防止浏览器解码 HTML 实体如 &quot;)
-func appendEscapeAttr(buf []byte, s string) []byte {
-	for i := range len(s) {
-		switch s[i] {
-		case '\'':
-			buf = append(buf, "&#39;"...)
-		case '&':
-			buf = append(buf, "&amp;"...)
-		default:
-			buf = append(buf, s[i])
+// appendClassAttr 将 classNames 拆分、trim 后以单空格连接写为 class 属性
+// classNames 存的是 Class() 的原始入参，此处用 SplitSeq 零分配拆分
+func (b *HTMLTagBuilder) appendClassAttr(buf *[]byte) {
+	*buf = append(*buf, " class='"...)
+	first := true
+	for _, raw := range b.classNames {
+		for in := range strings.SplitSeq(raw, " ") {
+			n := strings.TrimSpace(in)
+			if n == "" {
+				continue
+			}
+			if !first {
+				*buf = append(*buf, ' ')
+			}
+			first = false
+			*buf = appendEscapeAttr(*buf, n)
 		}
 	}
-	return buf
+	*buf = append(*buf, '\'')
+}
+
+// appendStyleAttr 写 style 属性，值已 join + trim，此处补尾分号
+func appendStyleAttr(buf *[]byte, styleVal string) {
+	*buf = append(*buf, " style='"...)
+	*buf = appendEscapeAttr(*buf, styleVal)
+	*buf = append(*buf, ';', '\'')
+}
+
+// appendAttrKey 写属性名前导空格 + 转义后的 key
+func appendAttrKey(buf *[]byte, key string) {
+	*buf = append(*buf, ' ')
+	*buf = appendEscapeAttr(*buf, key)
+}
+
+// appendAttrStr 写完整的 key='val'（val 非空时）
+func appendAttrStr[T ~string | ~[]byte](buf *[]byte, key string, val T) {
+	if len(val) == 0 {
+		return
+	}
+	appendAttrKey(buf, key)
+	*buf = append(*buf, '=', '\'')
+	*buf = appendEscapeAttr(*buf, val)
+	*buf = append(*buf, '\'')
+}
+
+// appendAttrInt / appendAttrUint / appendAttrFloat 数值属性直写
+// 数值输出不含 ' 和 &，无需转义
+func appendAttrInt(buf *[]byte, key string, v int64) {
+	appendAttrKey(buf, key)
+	*buf = append(*buf, '=', '\'')
+	*buf = strconv.AppendInt(*buf, v, 10)
+	*buf = append(*buf, '\'')
+}
+
+func appendAttrUint(buf *[]byte, key string, v uint64) {
+	appendAttrKey(buf, key)
+	*buf = append(*buf, '=', '\'')
+	*buf = strconv.AppendUint(*buf, v, 10)
+	*buf = append(*buf, '\'')
+}
+
+func appendAttrFloat(buf *[]byte, key string, v float64, bits int) {
+	appendAttrKey(buf, key)
+	*buf = append(*buf, '=', '\'')
+	*buf = strconv.AppendFloat(*buf, v, 'f', -1, bits)
+	*buf = append(*buf, '\'')
+}
+
+// appendAttr 按值类型直写属性，数值经 strconv.Append* 零中间字符串
+// 语义: bool true → 裸属性、false → 省略；空字符串 → 省略；其余类型 → JSON(sonic)
+func appendAttr(buf *[]byte, at *tagAttr) {
+	switch v := at.value.(type) {
+	case string:
+		appendAttrStr(buf, at.key, v)
+	case []byte:
+		appendAttrStr(buf, at.key, v)
+	case []rune:
+		appendAttrStr(buf, at.key, string(v))
+	case int:
+		appendAttrInt(buf, at.key, int64(v))
+	case int8:
+		appendAttrInt(buf, at.key, int64(v))
+	case int16:
+		appendAttrInt(buf, at.key, int64(v))
+	case int32:
+		appendAttrInt(buf, at.key, int64(v))
+	case int64:
+		appendAttrInt(buf, at.key, v)
+	case uint:
+		appendAttrUint(buf, at.key, uint64(v))
+	case uint8:
+		appendAttrUint(buf, at.key, uint64(v))
+	case uint16:
+		appendAttrUint(buf, at.key, uint64(v))
+	case uint32:
+		appendAttrUint(buf, at.key, uint64(v))
+	case uint64:
+		appendAttrUint(buf, at.key, v)
+	case float32:
+		appendAttrFloat(buf, at.key, float64(v), 32)
+	case float64:
+		appendAttrFloat(buf, at.key, v, 64)
+	case bool:
+		if v {
+			appendAttrKey(buf, at.key) // 裸属性
+		}
+	default:
+		jb, err := sonic.Marshal(v)
+		if err != nil {
+			panic(err)
+		}
+		appendAttrStr(buf, at.key, jb)
+	}
+}
+
+// appendEscapeAttr 将 s 追加到 buf，转义 HTML 属性值中的特殊字符
+// 单引号属性值中需转义: ' → &#39;, & → &amp; (防止浏览器解码 HTML 实体如 &quot;)
+// 无特殊字符时整段批量拷贝，不逐字节 append
+func appendEscapeAttr[T ~string | ~[]byte](buf []byte, s T) []byte {
+	start := 0
+	for i := 0; i < len(s); i++ {
+		var esc string
+		switch s[i] {
+		case '\'':
+			esc = "&#39;"
+		case '&':
+			esc = "&amp;"
+		default:
+			continue
+		}
+		buf = append(buf, s[start:i]...)
+		buf = append(buf, esc...)
+		start = i + 1
+	}
+	return append(buf, s[start:]...)
 }

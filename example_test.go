@@ -383,3 +383,31 @@ func ExampleIff() {
 	// <div>No person named Leon</div>
 	// </div>
 }
+
+/*
+Cached wraps a static, context-independent subtree (nav, footer, ...):
+it renders once and replays the cached bytes afterwards, skipping
+re-construction and re-rendering on every request.
+*/
+func ExampleCached() {
+	footer := Cached(
+		Footer(
+			P(Text("© 2026 r0vx")),
+		).Class("site-footer"),
+	)
+
+	// 每个请求复用同一个 footer 实例,渲染成本仅一次 memcpy
+	page := Div(
+		H1("Home"),
+		footer,
+	)
+	Fprint(os.Stdout, page, context.TODO())
+	//Output:
+	// <div>
+	// <h1>Home</h1>
+	//
+	// <footer class='site-footer'>
+	// <p>© 2026 r0vx</p>
+	// </footer>
+	// </div>
+}

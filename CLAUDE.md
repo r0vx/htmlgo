@@ -33,24 +33,28 @@ type HTMLComponent interface {
 }
 ```
 
-**1. Append-mode 缓冲是定义性设计。** 整棵组件树共享同一个 `*[]byte`,递归直接 `*buf = append(*buf, ...)`。缓冲只在顶层入口 `Fprint` / `MustString`(`utils.go`)分配一次(`make([]byte, 0, 4096)`)。这是相对上游 qor5/htmlgo 的 breaking change(旧签名 `MarshalHTML(ctx) ([]byte, error)`)。**任何新实现 `HTMLComponent` 的代码都必须 append 进传入的 buf,绝不返回或分配中间 `[]byte`。**
+**1. Append-mode 缓冲是定义性设计。** 整棵组件树共享同一个 `*[]byte`,递归直接 `*buf = append(*buf, ...)`。顶层入口 `Fprint` / `MustString`(`utils.go`)从 `sync.Pool` 取缓冲(>1MB 不回池),稳态下渲染零 buffer 分配。这是相对上游 qor5/htmlgo 的 breaking change(旧签名 `MarshalHTML(ctx) ([]byte, error)`)。**任何新实现 `HTMLComponent` 的代码都必须 append 进传入的 buf,绝不返回或分配中间 `[]byte`。**
 
-**2. 一切汇聚到 `HTMLTagBuilder`(`tag.go`)。** `elements.go` 里约 120 个构造器(`Div`/`Span`/`A`/`H1`…)全是 `Tag(name).Children(...)` 之类的一行包装,没有各自的渲染逻辑。真正的序列化 + 属性类型分发**只存在于** `HTMLTagBuilder.MarshalHTML`。改渲染行为基本只动这一个方法。
+**2. 一切汇聚到 `HTMLTagBuilder`(`tag.go`)。** `elements.go` 里约 120 个构造器(`Div`/`Span`/`A`/`H1`…)全是 `Tag(name).Children(...)` 之类的一行包装,没有各自的渲染逻辑。真正的序列化 + 属性类型分发**只存在于** `HTMLTagBuilder.MarshalHTML` + `appendAttr`。改渲染行为基本只动这两处。
 
-**3. Builder 是可变 + 链式的(`return b`),不是不可变。** 这是本库刻意的 fluent idiom(与全局"immutability"规则相反,此处以库的既定风格为准)——不要把它"修正"成返回副本。
+**3. Builder 是可变 + 链式的(`return b`),不是不可变。** 这是本库刻意的 fluent idiom(与全局"immutability"规则相反,此处以库的既定风格为准)——不要把它"修正"成返回副本。**但不可值拷贝 builder**(`classNames` 初始指向内联 `classBuf`,值拷贝会共享底层数组)。
 
-**4. 两条转义路径,别混用:**
-- 正文文本:`Text()` / `Textf()`(`utils.go`)→ `html.EscapeString`。
-- 属性值:`appendEscapeAttr`(`tag.go`)→ 单引号包裹,**只转义 `'`→`&#39;` 和 `&`→`&amp;`**(`< > "` 在单引号属性里安全,故不转义)。
+**4. `MarshalHTML` 是只读的。** class/style 的 join、`Text()` 正文的转义全部延迟到渲染期直写 buf,渲染不变异 builder,重复渲染幂等(有测试固化)。
+
+**5. 两条转义路径,别混用:**
+- 正文文本:`Text()` / `Textf()`(`utils.go`)→ 存原文,渲染时 `appendEscapeText` 直接转义进 buf(规则与 `html.EscapeString` 一致,五字符)。`HTMLTagBuilder.Text()` 走 builder 的 `text` 字段快路径,零装箱。
+- 属性值:`appendEscapeAttr`(`tag.go`,泛型 `string|[]byte`)→ 单引号包裹,**只转义 `'`→`&#39;` 和 `&`→`&amp;`**(`< > "` 在单引号属性里安全,故不转义)。
 - `RawHTML`(`utils.go`)是逃生舱:原样输出,不转义(`Script`/`Style` 的内容就走这里)。
 - 新增任何属性输出都要经过 `appendEscapeAttr`,不要手拼。
 
-**5. 属性值语义(`MarshalHTML` 里的 type switch):** `bool` true → 裸属性、false → 省略;空字符串 → 省略;数值 → `strconv`;其余类型 → JSON(`JSONString`,**用 bytedance/sonic 而非 encoding/json**)。
+**6. 属性值语义(`appendAttr` 里的 type switch):** `bool` true → 裸属性、false → 省略;空字符串 → 省略;数值 → `strconv.Append*` 直写 buf;其余类型 → JSON(sonic 的 `[]byte` 直接转义进 buf,**不要换回 encoding/json**)。
 
-**6. 条件渲染(`if.go`):** `If(cond, comps...)` 立即求值;`Iff(cond, func() HTMLComponent)` 惰性——当 body 可能 nil-panic 或开销大时用 `Iff`。两者都支持 `.ElseIf().Else()` 链。
+**7. 条件渲染(`if.go`):** `If(cond, comps...)` 立即求值;`Iff(cond, func() HTMLComponent)` 惰性——当 body 可能 nil-panic 或开销大时用 `Iff`。两者都支持 `.ElseIf().Else()` 链。
 
-**7. 输出格式:** 每个标签前带 `\n`(append 设计的产物,`\n<tag`),所以测试期望串都以 `\n` 开头——新增渲染测试时注意对齐这个前缀。
+**8. `Cached(comp)`(`utils.go`):** 包装 ctx 无关的静态子树(导航/footer),首次渲染后缓存字节、之后纯拷贝(整页回放 ~390ns/0 allocs)。输出依赖 ctx 或可变状态的组件不可用。
 
-## 性能基线
+**9. 输出格式:** 每个标签前带 `\n`(append 设计的产物,`\n<tag`),所以测试期望串都以 `\n` 开头——新增渲染测试时注意对齐这个前缀。
 
-设计文档(`docs/plans/2026-02-17-performance-optimization-design.md`)称分配降到 O(1),但实测分配数仍随组件数线性增长:buffer 已 O(1),但组件树构造仍按节点分配——`new(HTMLTagBuilder)` + attrs/children 切片、`MarshalHTML` 里的 `strings.Join`(class/styles)、`Text` 的 `html.EscapeString`。改性能时优先看构造层而非 buffer。(`Class()` 已用零分配的 `strings.SplitSeq` 替代 `strings.Split`。)
+## 性能基线(2026-06 极致优化后)
+
+渲染路径已无浪费;剩余分配全在**构造层**,且已被基准逐项压过:builder 本体(144B size class,**结构体大小比分配次数对耗时影响更大**——曾试过内联 attrs 数组,因结构体膨胀到 296B 反而整体变慢而回退)、call-site 变参切片、`any`/接口装箱。当前 Complex 基准 ~73µs/1229 allocs(优化前 155µs/4904)。结构体字段经过逐字节调优(`styles` 用指针懒分配省 16B 压进 144 class),**给 `HTMLTagBuilder` 加字段前必须跑基准**。再往下只有改 API(arena/池化 builder)或下游用 `Cached` 缓存静态子树。
