@@ -302,8 +302,8 @@ func (b *HTMLTagBuilder) MarshalHTML(ctx context.Context, buf *[]byte) error {
 	}
 	stylePending := len(styleVal) > 0
 
-	// 写开标签: \n<tag
-	*buf = append(*buf, '\n', '<')
+	// 写开标签: <tag
+	*buf = append(*buf, '<')
 	*buf = append(*buf, b.tag...)
 
 	// 写属性；手动 Attr 设置过的 class/style 在原位置被 Class()/Style() 的值覆盖
@@ -332,7 +332,6 @@ func (b *HTMLTagBuilder) MarshalHTML(ctx context.Context, buf *[]byte) error {
 	*buf = append(*buf, '>')
 
 	if b.omitEndTag {
-		*buf = append(*buf, '\n')
 		return nil
 	}
 
@@ -351,10 +350,10 @@ func (b *HTMLTagBuilder) MarshalHTML(ctx context.Context, buf *[]byte) error {
 		}
 	}
 
-	// 写闭标签: </tag>\n
+	// 写闭标签: </tag>
 	*buf = append(*buf, '<', '/')
 	*buf = append(*buf, b.tag...)
-	*buf = append(*buf, '>', '\n')
+	*buf = append(*buf, '>')
 	return nil
 }
 

@@ -22,9 +22,7 @@ func ExampleDiv() {
 	)
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <div>123&lt;h1&gt;Hello, We write html in Go
-	// <br>
-	// </div>
+	// <div>123&lt;h1&gt;Hello, We write html in Go<br></div>
 }
 
 /*
@@ -43,18 +41,7 @@ func ExampleHTML() {
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
 	// <!DOCTYPE html>
-	//
-	// <html>
-	// <head>
-	// <meta charset='utf8'>
-	//
-	// <title>My test page</title>
-	// </head>
-	//
-	// <body>
-	// <img src='images/firefox-icon.png' alt='My test image'>
-	// </body>
-	// </html>
+	// <html><head><meta charset='utf8'><title>My test page</title></head><body><img src='images/firefox-icon.png' alt='My test image'></body></html>
 }
 
 /*
@@ -81,25 +68,9 @@ func ExampleComponentFunc() {
 	)
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <ul>
-	// <li>
-	// <div class='userProfile'>
-	// <h1 class='profileName'>felix&lt;h1&gt;</h1>
-	//
-	// <img src='http://image.com/img1.png' class='profileImage'>
-	// <svg>complicated svg</svg>
-	// </div>
-	// </li>
-	//
-	// <li>
-	// <div class='userProfile'>
-	// <h1 class='profileName'>john</h1>
-	//
-	// <img src='http://image.com/img2.png' class='profileImage'>
-	// <svg>complicated svg</svg>
-	// </div>
-	// </li>
-	// </ul>
+	// <ul><li><div class='userProfile'><h1 class='profileName'>felix&lt;h1&gt;</h1><img src='http://image.com/img1.png' class='profileImage'><svg>complicated svg</svg>
+	// </div></li><li><div class='userProfile'><h1 class='profileName'>john</h1><img src='http://image.com/img2.png' class='profileImage'><svg>complicated svg</svg>
+	// </div></li></ul>
 }
 
 type MySelectBuilder struct {
@@ -185,13 +156,7 @@ func ExampleComponents() {
 
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <select>
-	// <option value='1'>label 1</option>
-	//
-	// <option value='2' selected='true'>label 2</option>
-	//
-	// <option value='3'>label 3</option>
-	// </select>
+	// <select><option value='1'>label 1</option><option value='2' selected='true'>label 2</option><option value='3'>label 3</option></select>
 }
 
 /*
@@ -217,22 +182,16 @@ func ExampleScript() {
 
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <div class='container'>
-	// <button id='hello'>Hello</button>
-	//
-	// <style type='text/css'>
+	// <div class='container'><button id='hello'>Hello</button><style type='text/css'>
 	// 	.container {
 	// 		background-color: red;
 	// 	}
-	// </style>
-	//
-	// <script type='text/javascript'>
+	// </style><script type='text/javascript'>
 	// 	var b = document.getElementById("hello")
 	// 	b.onclick = function(e){
 	// 		alert("Hello");
 	// 	}
-	// </script>
-	// </div>
+	// </script></div>
 }
 
 /*
@@ -301,22 +260,7 @@ func ExampleFprint() {
 
 	//Output:
 	// <!DOCTYPE html>
-	//
-	// <html>
-	// <head>
-	// <meta charset='utf8'>
-	// </head>
-	//
-	// <body>
-	// <div class='header'>header
-	// <div class='username'>felix</div>
-	// </div>
-	//
-	// <div>This is my home page</div>
-	//
-	// <div class='footer'>footer</div>
-	// </body>
-	// </html>
+	// <html><head><meta charset='utf8'></head><body><div class='header'>header<div class='username'>felix</div></div><div>This is my home page</div><div class='footer'>footer</div></body></html>
 }
 
 /*
@@ -339,11 +283,7 @@ func ExampleHTMLTagBuilder_Attr() {
 	)
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <div>
-	// <input name='username' type='checkbox' checked more-data='{"Name":"felix","Count":100}' max-length='10'>
-	//
-	// <input name='username2' type='checkbox'>
-	// </div>
+	// <div><input name='username' type='checkbox' checked more-data='{"Name":"felix","Count":100}' max-length='10'><input name='username2' type='checkbox'></div>
 }
 
 /*
@@ -379,9 +319,7 @@ func ExampleIff() {
 	)
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <div>
-	// <div>No person named Leon</div>
-	// </div>
+	// <div><div>No person named Leon</div></div>
 }
 
 /*
@@ -403,11 +341,5 @@ func ExampleCached() {
 	)
 	Fprint(os.Stdout, page, context.TODO())
 	//Output:
-	// <div>
-	// <h1>Home</h1>
-	//
-	// <footer class='site-footer'>
-	// <p>© 2026 r0vx</p>
-	// </footer>
-	// </div>
+	// <div><h1>Home</h1><footer class='site-footer'><p>© 2026 r0vx</p></footer></div>
 }

@@ -18,11 +18,7 @@ var htmltagCases = []struct {
 		tag: Div(
 			Div().Text("Hello"),
 		),
-		expected: `
-<div>
-<div>Hello</div>
-</div>
-`,
+		expected: `<div><div>Hello</div></div>`,
 	},
 	{
 		name: "case 2",
@@ -33,11 +29,7 @@ var htmltagCases = []struct {
 					"style").
 				Attr("id", "menu-id"),
 		),
-		expected: `
-<div>
-<div class='menu' id='menu-id'>Hello</div>
-</div>
-`,
+		expected: `<div><div class='menu' id='menu-id'>Hello</div></div>`,
 	},
 	{
 		name: "escape 1",
@@ -47,11 +39,7 @@ var htmltagCases = []struct {
 					"id", "the><&\"'-menu",
 					"style"),
 		),
-		expected: `
-<div>
-<div class='menu' id='the><&amp;"&#39;-menu'>Hello</div>
-</div>
-`,
+		expected: `<div><div class='menu' id='the><&amp;"&#39;-menu'>Hello</div></div>`,
 	},
 	{
 		// 手动 Attr("class") 与 Class() 共存时,Class() 的值在原属性位置覆盖
@@ -59,9 +47,7 @@ var htmltagCases = []struct {
 		tag: Div().
 			Attr("class", "manual", "id", "x").
 			Class("a b").Class("c"),
-		expected: `
-<div class='a b c' id='x'></div>
-`,
+		expected: `<div class='a b c' id='x'></div>`,
 	},
 	{
 		name: "style joined with trailing semicolon",
@@ -69,9 +55,7 @@ var htmltagCases = []struct {
 			Style("color: red;").
 			Style("margin: 0").
 			Class("box'&"),
-		expected: `
-<div class='box&#39;&amp;' style='color: red; margin: 0;'></div>
-`,
+		expected: `<div class='box&#39;&amp;' style='color: red; margin: 0;'></div>`,
 	},
 	{
 		// 超过内联容量(2)的属性和 class 溢出到堆,顺序与去重不变
@@ -80,9 +64,7 @@ var htmltagCases = []struct {
 			Attr("a", "1", "b", "2", "c", "3", "d", "4").
 			Attr("b", "20").
 			Class("c1").Class("c2").Class("c3 c4"),
-		expected: `
-<div a='1' b='20' c='3' d='4' class='c1 c2 c3 c4'></div>
-`,
+		expected: `<div a='1' b='20' c='3' d='4' class='c1 c2 c3 c4'></div>`,
 	},
 	{
 		// Text 快路径与 Append/PrependChildren 物化后的顺序语义
@@ -90,15 +72,7 @@ var htmltagCases = []struct {
 		tag: Div(
 			P().Text("mid").AppendChildren(Span("after")).PrependChildren(Span("before")),
 		),
-		expected: `
-<div>
-<p>
-<span>before</span>
-mid
-<span>after</span>
-</p>
-</div>
-`,
+		expected: `<div><p><span>before</span>mid<span>after</span></p></div>`,
 	},
 	{
 		// Text 之后 Children 整体替换;Children 之后 Text 也整体替换
@@ -107,15 +81,7 @@ mid
 			P().Text("gone").Children(Span("kept")),
 			B("gone too").Text("final"),
 		),
-		expected: `
-<div>
-<p>
-<span>kept</span>
-</p>
-
-<b>final</b>
-</div>
-`,
+		expected: `<div><p><span>kept</span></p><b>final</b></div>`,
 	},
 	{
 		// 数值/bool/[]byte/JSON 属性直写路径
@@ -129,9 +95,7 @@ mid
 			}{7}).
 			Disabled(true).
 			Readonly(false),
-		expected: `
-<input name='n' tabindex='3' data-f='1.5' data-b='bs' data-json='{"a":7}' disabled>
-`,
+		expected: `<input name='n' tabindex='3' data-f='1.5' data-b='bs' data-json='{"a":7}' disabled>`,
 	},
 	{
 		// 免装箱通道与 Attr(any) 通道互相覆盖,后写者生效
@@ -139,9 +103,7 @@ mid
 		tag: Div().
 			Href("/old").Attr("href", "/mid").Href("/new").
 			Attr("id", "x").Id("y"),
-		expected: `
-<div href='/new' id='y'></div>
-`,
+		expected: `<div href='/new' id='y'></div>`,
 	},
 }
 
@@ -171,10 +133,10 @@ func TestFprintPoolReuse(t *testing.T) {
 	if err := Fprint(&b2, Span("x"), t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if b1.String() != "\n<div class='a'></div>\n" {
+	if b1.String() != "<div class='a'></div>" {
 		t.Errorf("b1 polluted: %q", b1.String())
 	}
-	if b2.String() != "\n<span>x</span>\n" {
+	if b2.String() != "<span>x</span>" {
 		t.Errorf("b2 polluted: %q", b2.String())
 	}
 }

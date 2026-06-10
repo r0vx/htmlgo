@@ -14,13 +14,13 @@ go test -bench=. -benchmem -run=^$     # 基准(基准函数在 bench_test.go)
 go build ./... && go vet ./...         # 构建 + 静态检查
 ```
 
-## README 是自动生成的 —— 不要手改
+## README 与 example_test.go 同源 —— 改 Example 后必须同步 README
 
-`modd.conf` 在任何 `.go` 改动后执行 `godoc2readme . > ./README.md`,再跑 `go test -v ./...`。所以:
+README 内容 = `api.go` 包注释 + `example_test.go` 的 `Example*` 函数(含 `// Output:`)。历史上由 `godoc2readme` 生成(见 `modd.conf`),**但该工具用了已删除的 `godoc.CommandLine`,新版 Go 编译不过,生成链已死**。现状:
 
-- **README.md 由 godoc 生成**:内容 = `api.go` 的包注释 + `example_test.go` 里的 `Example*` 函数(含 `// Output:`)。要改 README,改这两处源,**不要直接编辑 README.md**(会被覆盖)。
-- `godoc2readme` 本地未安装;若需本地重新生成需先 `go install` 该工具,否则 `modd` 的 prep 步骤会失败。
-- 新增对外用法示例时,写成新的 `Example*` 函数,它同时是测试 + 文档。
+- README.md 现在是**手工/脚本同步维护**的:改了 `Example*` 函数或其 Output 后,把对应代码块和 `//Output:` 区同步进 README(2026-06 起如此)。
+- `modd.conf` 里的 `godoc2readme` prep 步骤会失败,本地跑 `modd` 时忽略该步。
+- 新增对外用法示例时,仍写成新的 `Example*` 函数(测试 + 文档),并在 README 末尾按既有风格补一节。
 
 ## 架构(跨文件的大局)
 
@@ -53,7 +53,7 @@ type HTMLComponent interface {
 
 **8. `Cached(comp)`(`utils.go`):** 包装 ctx 无关的静态子树(导航/footer),首次渲染后缓存字节、之后纯拷贝(整页回放 ~390ns/0 allocs)。输出依赖 ctx 或可变状态的组件不可用。
 
-**9. 输出格式:** 每个标签前带 `\n`(append 设计的产物,`\n<tag`),所以测试期望串都以 `\n` 开头——新增渲染测试时注意对齐这个前缀。
+**9. 输出格式是紧凑的(无结构性换行)。** 标签间不输出 `\n`(HTML 是给浏览器的,非给人读;qor5 上游的 `\n<tag` 格式已在 v0.3.0 移除)。内容自带的换行(`RawHTML`/`Script`/`Style` 里的)原样保留。注意:行内元素间由换行产生的「隐式空格」不复存在,间距一律交给 CSS。
 
 ## 性能基线(2026-06 极致优化后)
 

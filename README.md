@@ -26,9 +26,7 @@ Create a simple div, Text will be escaped by html
 	)
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <div>123&lt;h1&gt;Hello, We write html in Go
-	// <br>
-	// </div>
+	// <div>123&lt;h1&gt;Hello, We write html in Go<br></div>
 ```
 
 Create a full html page
@@ -45,18 +43,7 @@ Create a full html page
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
 	// <!DOCTYPE html>
-	//
-	// <html>
-	// <head>
-	// <meta charset='utf8'>
-	//
-	// <title>My test page</title>
-	// </head>
-	//
-	// <body>
-	// <img src='images/firefox-icon.png' alt='My test image'>
-	// </body>
-	// </html>
+	// <html><head><meta charset='utf8'><title>My test page</title></head><body><img src='images/firefox-icon.png' alt='My test image'></body></html>
 ```
 
 Use RawHTML and Component
@@ -81,25 +68,9 @@ Use RawHTML and Component
 	)
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <ul>
-	// <li>
-	// <div class='userProfile'>
-	// <h1 class='profileName'>felix&lt;h1&gt;</h1>
-	//
-	// <img src='http://image.com/img1.png' class='profileImage'>
-	// <svg>complicated svg</svg>
-	// </div>
-	// </li>
-	//
-	// <li>
-	// <div class='userProfile'>
-	// <h1 class='profileName'>john</h1>
-	//
-	// <img src='http://image.com/img2.png' class='profileImage'>
-	// <svg>complicated svg</svg>
-	// </div>
-	// </li>
-	// </ul>
+	// <ul><li><div class='userProfile'><h1 class='profileName'>felix&lt;h1&gt;</h1><img src='http://image.com/img1.png' class='profileImage'><svg>complicated svg</svg>
+	// </div></li><li><div class='userProfile'><h1 class='profileName'>john</h1><img src='http://image.com/img2.png' class='profileImage'><svg>complicated svg</svg>
+	// </div></li></ul>
 ```
 
 More complicated customized component
@@ -149,13 +120,7 @@ More complicated customized component
 
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <select>
-	// <option value='1'>label 1</option>
-	//
-	// <option value='2' selected='true'>label 2</option>
-	//
-	// <option value='3'>label 3</option>
-	// </select>
+	// <select><option value='1'>label 1</option><option value='2' selected='true'>label 2</option><option value='3'>label 3</option></select>
 ```
 
 Write a little bit of JavaScript and stylesheet
@@ -178,22 +143,16 @@ Write a little bit of JavaScript and stylesheet
 
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <div class='container'>
-	// <button id='hello'>Hello</button>
-	//
-	// <style type='text/css'>
+	// <div class='container'><button id='hello'>Hello</button><style type='text/css'>
 	// 	.container {
 	// 		background-color: red;
 	// 	}
-	// </style>
-	//
-	// <script type='text/javascript'>
+	// </style><script type='text/javascript'>
 	// 	var b = document.getElementById("hello")
 	// 	b.onclick = function(e){
 	// 		alert("Hello");
 	// 	}
-	// </script>
-	// </div>
+	// </script></div>
 ```
 
 An example about how to integrate into http.Handler, and how to do layout, and how to use context.
@@ -260,22 +219,7 @@ An example about how to integrate into http.Handler, and how to do layout, and h
 
 	//Output:
 	// <!DOCTYPE html>
-	//
-	// <html>
-	// <head>
-	// <meta charset='utf8'>
-	// </head>
-	//
-	// <body>
-	// <div class='header'>header
-	// <div class='username'>felix</div>
-	// </div>
-	//
-	// <div>This is my home page</div>
-	//
-	// <div class='footer'>footer</div>
-	// </body>
-	// </html>
+	// <html><head><meta charset='utf8'></head><body><div class='header'>header<div class='username'>felix</div></div><div>This is my home page</div><div class='footer'>footer</div></body></html>
 ```
 
 An example show how to set different type of attributes
@@ -296,11 +240,7 @@ An example show how to set different type of attributes
 	)
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <div>
-	// <input name='username' type='checkbox' checked more-data='{"Name":"felix","Count":100}' max-length='10'>
-	//
-	// <input name='username2' type='checkbox'>
-	// </div>
+	// <div><input name='username' type='checkbox' checked more-data='{"Name":"felix","Count":100}' max-length='10'><input name='username2' type='checkbox'></div>
 ```
 
 An example show how to set styles
@@ -332,7 +272,23 @@ An example to use If, `Iff` is for body to passed in as an func for the body dep
 	)
 	Fprint(os.Stdout, comp, context.TODO())
 	//Output:
-	// <div>
-	// <div>No person named Leon</div>
-	// </div>
+	// <div><div>No person named Leon</div></div>
+```
+
+Cached wraps a static, context-independent subtree (nav, footer, ...): it renders once and replays the cached bytes afterwards, skipping re-construction and re-rendering on every request.
+```go
+	footer := Cached(
+	    Footer(
+	        P(Text("© 2026 r0vx")),
+	    ).Class("site-footer"),
+	)
+
+	// 每个请求复用同一个 footer 实例,渲染成本仅一次 memcpy
+	page := Div(
+	    H1("Home"),
+	    footer,
+	)
+	Fprint(os.Stdout, page, context.TODO())
+	//Output:
+	// <div><h1>Home</h1><footer class='site-footer'><p>© 2026 r0vx</p></footer></div>
 ```
