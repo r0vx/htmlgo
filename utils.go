@@ -22,8 +22,11 @@ func (s textComponent) MarshalHTML(ctx context.Context, buf *[]byte) error {
 	return nil
 }
 
-// appendEscapeText 按 html.EscapeString 的规则转义正文文本并追加到 buf
-// 转义 < > & ' " 五个字符；无特殊字符时整段批量拷贝
+// appendEscapeText 转义正文文本并追加到 buf。
+// 转义 < > & ' " 五个 HTML 字符；另中和 Vue 插值起始符 `{{`（把首个 `{` 转为实体），
+// 防止 SSR 文本被浏览器端当 Vue 模板执行——用户数据（昵称/评论等）含 `{{expr}}` 时
+// 只作字面显示、不再被水合期求值（模板注入 / 客户端 XSS 防护，fail-closed 默认安全）。
+// 需要真正插值的框架代码请显式用 Interp/RawHTML。无特殊字符时整段批量拷贝。
 func appendEscapeText(buf []byte, s string) []byte {
 	start := 0
 	for i := 0; i < len(s); i++ {
@@ -39,6 +42,13 @@ func appendEscapeText(buf []byte, s string) []byte {
 			esc = "&gt;"
 		case '"':
 			esc = "&#34;"
+		case '{':
+			// 仅当构成 `{{`（Vue 插值起始）时中和首个 `{`；单个 `{` 原样保留（减少输出噪声）。
+			// 转义后 Vue 编译器不再识别为插值分隔符，`{{expr}}` 只作字面显示。
+			if i+1 >= len(s) || s[i+1] != '{' {
+				continue
+			}
+			esc = "&#123;"
 		default:
 			continue
 		}
@@ -55,6 +65,13 @@ func Text(text string) (r HTMLComponent) {
 
 func Textf(format string, a ...any) (r HTMLComponent) {
 	return Text(fmt.Sprintf(format, a...))
+}
+
+// Interp 在服务端 HTML 里内联 Vue 模板插值（`{{ expr }}`），原样输出、不转义。
+// ⚠️ 绝不可用于用户数据——用户数据一律走 Text（默认中和 `{{`，防模板注入 / 客户端 XSS）。
+// expr 应是受信的框架/前端表达式（如 "{{locals.count}}"、"{{element.label}}"）。
+func Interp(expr string) HTMLComponent {
+	return RawHTML(expr)
 }
 
 type HTMLComponents []HTMLComponent
